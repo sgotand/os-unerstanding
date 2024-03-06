@@ -1,51 +1,66 @@
-; vim: set ft=nasm nospell:
+;************************************************************************
+;	文字列表示
+;------------------------------------------------------------------------
+;	BIOS を使用
+;========================================================================
+;■書式		: void puts(str);
+;
+;■引数
+;	str		: 文字列のアドレス
+;
+;■戻り値	: 無し
+;************************************************************************
 puts:
-  ; prepare stack flame
-  ;  0x0|
-  ; ^^^^
-  ; BP+0| BP (last)
-  ; BP+2| IP (return) (pushed by caller)
-  ; BP+4| address to the string (pushed by caller)
-  push  bp;
-  mov   bp, sp;
+		;---------------------------------------
+		; 【スタックフレームの構築】
+		;---------------------------------------
+												; ------|--------
+												;    + 4| 文字列のアドレス
+												;    + 2| IP（戻り番地）
+		push	bp								;  BP+ 0| BP（元の値）
+		mov		bp, sp							; ------+--------
 
-  ; 
-  ; caller save register before BIOS CALL
-  ;  0x0|
-  ; ^^^^
-  ; BP-6| si
-  ; BP-4| bx
-  ; BP-2| ax
-  ; BP+0| BP (last)
-  push  ax
-  push  bx
-  push  si
+		;---------------------------------------
+		; 【レジスタの保存】
+		;---------------------------------------
+		push	ax
+		push	bx
+		push	si
 
-  mov   si, [bp+4]
+		;---------------------------------------
+		; 引数を取得
+		;---------------------------------------
+		mov		si, [bp + 4]					; SI = 文字列のアドレス;
 
-  ; set BIOS CALL args
-  mov   ah, 0x0E;   BIOS CALL arg to specify teletype output 1char
-  mov   bx, 0x0000; BIOS CALL arg to specify page num & color = 0
+		;---------------------------------------
+		; 【処理の開始】
+		;---------------------------------------
+		mov		ah, 0x0E						; // テレタイプ式1文字出力
+		mov		bx, 0x0000						; // ページ番号と文字色を0に設定
+		cld										; DF = 0; // アドレス加算
+.10L:											; do
+												; {
+		lodsb									;   AL = *SI++;
+												;   
+		cmp		al, 0							;   if (0 == AL)
+		je		.10E							;     break;
+												;   
+		int		0x10							;   Int10(0x0E, AL); // 文字出力
+		jmp		.10L							;   
+.10E:											; } while (1);
 
-  cld;  DF=0 to specify addres direction to increment
-.10L:   ; why .10L???
-  lodsb ; AL=*SI++;
+		;---------------------------------------
+		; 【レジスタの復帰】
+		;---------------------------------------
+		pop		si
+		pop		bx
+		pop		ax
 
-  cmp   al, 0;
-  je    .10E; if AL== \0 (end of string) then break
-  int   0x10; else CALL BIOS video service
-  jmp   .10L;
+		;---------------------------------------
+		; 【スタックフレームの破棄】
+		;---------------------------------------
+		mov		sp, bp
+		pop		bp
 
-.10E:
+		ret
 
-
-  ; restore registers
-  pop si
-  pop bx
-  pop ax
-
-
-  ; collapse stack flame
-  mov sp, bp
-  pop bp
-  ret
