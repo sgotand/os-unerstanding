@@ -21,12 +21,13 @@ ipl:
 
   ; show nums
   cdecl itoa, 8086, .s1,  8,  10, 0b0001; "    8086" 
+  cdecl puts, .s1
 
   cdecl puts, .s0
   jmp $ ;
 
 .s0   db "Booting...", 0x0A, 0x0D, 0; 0X0A == LF, 0x0D == CR, 0==$
-.s1   db "0000000000", 0x0A, 0x0D, 0; 0X0A == LF, 0x0D == CR, 0==$
+.s1   db "--------", 0x0A, 0x0D, 0; 0X0A == LF, 0x0D == CR, 0==$
 
 ALIGN 2, db 0;
 BOOT:         ; info for BOOT drive???
@@ -34,6 +35,7 @@ BOOT:         ; info for BOOT drive???
 
 %include  "../modules/real/puts.s"
 %include  "../modules/real/itoa.s"
+; %include  "../../../prog/prog/src/modules/real/itoa.s"
 
   times 512 - 2 - ($ - $$) db 0x00;
   db 0x55, 0xAA;

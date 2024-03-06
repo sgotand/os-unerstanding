@@ -31,7 +31,7 @@ itoa:
 
   ; load args
   mov   ax, [bp+4];
-  mov   bx, [bp+6];
+  mov   si, [bp+6];
   mov   cx, [bp+8];
 
   mov   di, si;
@@ -71,6 +71,7 @@ itoa:
 .30L:; fill bufs
   mov dx, 0
   div bx; dx = dx:ax % radix, ax = dx:ax / radix
+
   mov si, dx
   mov dl, byte [.ascii + si]; dl = char for the modulo
 
