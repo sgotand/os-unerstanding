@@ -54,10 +54,8 @@ istruc  drive
 iend
 
 %include  "../modules/real/puts.s";
-; %include  "../modules/real/itoa.s";
 %include  "../modules/real/reboot.s";
 %include  "../modules/real/read_chs.s";
-
   times 512 - 2 - ($ - $$) db 0;
   db 0x55, 0xAA;
 
@@ -71,12 +69,40 @@ iend
 ; |2nd stage|
 
 
+%include  "../modules/real/itoa.s";
+%include  "../modules/real/get_drive_param.s";
+
 stage_2:
   ; put str
   cdecl puts, .s0;
+
+  ;get drive params
+
+  cdecl get_drive_param, BOOT;
+  cmp ax, 0
+.10Q: jne   .10E            ;if not succeeded then
+.10T: cdecl puts, .e0;
+      call  reboot;
+.10E:
+  mov   ax, [BOOT + drive.no]   ; AX = ブートドライブ;
+  cdecl itoa, ax, .p1, 2, 16, 0b0100 ; 
+  mov   ax, [BOOT + drive.cyln]   ; 
+  cdecl itoa, ax, .p2, 4, 16, 0b0100 ; 
+  mov   ax, [BOOT + drive.head]   ; AX = ヘッド数;
+  cdecl itoa, ax, .p3, 2, 16, 0b0100 ; 
+  mov   ax, [BOOT + drive.sect]   ; AX = トラックあたりのセクタ数;
+  cdecl itoa, ax, .p4, 2, 16, 0b0100 ; 
+  cdecl puts, .s1
+
   jmp $
 
 .s0   db "2nd stage...", 0x0A, 0x0D, 0; 0X0A == LF, 0x0D == CR, 0==$
+.s1   db " Drive:0x"
+.p1   db "  , C:0x"
+.p2   db "    , H:0x"
+.p3   db "  , S:0x"
+.p4   db "  ", 0x0A, 0x0D, 0
+.e0   db "Error:can't get drive params", 0;
 
 
   times BOOT_SIZE - ($ - $$) db 0x00;

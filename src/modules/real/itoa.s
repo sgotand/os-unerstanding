@@ -1,121 +1,140 @@
-; vim: set ft=nasm nospell:
-
+;************************************************************************
+;	数値を文字に変換
+;========================================================================
+;■書式		: void itoa(num, buff, size, radix, flags);
+;
+;■引数
+;	num		: 変換する数値
+;	buff	: 保存先バッファアドレス
+;	size	: 保存先バッファサイズ
+;	radix	: 基数（2、8、10又は16を設定する）
+;	flags	: フラグ
+;			:   B2 : 1=空白を'0'（ゼロ）で埋める
+;			:      : 0=空白を' '（スペース）で埋める
+;			:   B1 : 1=＋/-符号を表示する
+;			:      : 0=＋/-符号を表示しない
+;			:   B0 : 1=符号付き正数として扱う
+;			:      : 0=符号無し正数として扱う
+;
+;■戻り値	: 無し
+;************************************************************************
 itoa:
-  ; prepare stack flame
-  ;  0x0 |
-  ; ^^^^
-  ; BP+0 | BP (last)
-  ; BP+2 | IP (return) (pushed by caller)
-  ; BP+4 | number
-  ; BP+6 | &buf
-  ; BP+8 | len(buf)
-  ; BP+10| radix
-  ; BP+12| flag (0bit: signed or not, 1bit: output sign or not, 2bit: fill 0)
-  push  bp;
-  mov   bp, sp;
+		;---------------------------------------
+		; 【スタックフレームの構築】
+		;---------------------------------------
+												; ------|--------
+												;    +12| フラグ
+												;    +10| 基数
+												;    + 8| バッファサイズ
+												;    + 6| バッファアドレス
+												;    + 4| 数値
+												; ------|--------
+												;    + 2| IP（戻り番地）
+		push	bp								;  BP+ 0| BP（元の値）
+		mov		bp, sp							; ------+--------
 
-  ; 
-  ; caller save register before BIOS CALL
-  ;  0x0|
-  ; ^^^^
-  ; ... | di
-  ; ...
-  ; BP-2| ax
-  ; BP+0| BP (last)
-  push  ax;
-  push  bx;
-  push  cx;
-  push  dx;
-  push  si;
-  push  di;
+		;---------------------------------------
+		; 【レジスタの保存】
+		;---------------------------------------
+		push	ax
+		push	bx
+		push	cx
+		push	dx
+		push	si
+		push	di
 
-  ; load args
-  mov   ax, [bp+4];
-  mov   si, [bp+6];
-  mov   cx, [bp+8];
+		;---------------------------------------
+		; 引数を取得
+		;---------------------------------------
+		mov		ax, [bp + 4]					; val  = 数値;
+		mov		si, [bp + 6]					; dst  = バッファアドレス;
+		mov		cx, [bp + 8]					; size = 残りバッファサイズ;
 
-  mov   di, si;
-  add   di, cx;
-  dec   di;   dst=&dst[size - 1];
+		mov		di, si							; // バッファの最後尾
+		add		di, cx							; dst  = &dst[size - 1];
+		dec		di								; 
 
-  mov   bx, word [bp+12]; load flags
+		mov		bx, [bp +12]					; flags = オプション;
 
-  ; check signed or not from flag
+		;---------------------------------------
+		; 符号付き判定
+		;---------------------------------------
+		test	bx, 0b0001						; if (flags & 0x01)// 符号付き
+.10Q:	je		.10E							; {
+		cmp		ax, 0							;   if (val < 0)
+.12Q:	jge		.12E							;   {
+		or		bx, 0b0010						;     flags |=  2; // 符号表示
+.12E:											;   }
+.10E:											; }
 
-  test bx, 0b0001
-.10Q: je    .10E; なぜinline?
-      cmp   ax, 0;
-.12Q  jge   .12E; ax >= 0
-      or    bx, 0b0010; flag |= OUTPUT_SIGN (always output - for negative value)
-.12E:;
-.10E:;
+		;---------------------------------------
+		; 符号出力判定
+		;---------------------------------------
+		test	bx, 0b0010						; if (flags & 0x02)// 符号出力判定
+.20Q:	je		.20E							; {
+		cmp		ax, 0							;   if (val < 0)
+.22Q:	jge		.22F							;   {
+		neg		ax								;     val *= -1;   // 符号反転
+		mov		[si], byte '-'					;     *dst = '-';  // 符号表示
+		jmp		.22E							;   }
+.22F:											;   else
+												;   {
+		mov		[si], byte '+'					;     *dst = '+';  // 符号表示
+.22E:											;   }
+		dec		cx								;   size--;        // 残りバッファサイズの減算
+.20E:											; }
 
-  ; check output sign or not from flag
+		;---------------------------------------
+		; ASCII変換
+		;---------------------------------------
+		mov		bx, [bp +10]					; BX = 基数;
+.30L:											; do
+												; {
+		mov		dx, 0							;   
+		div		bx								;   DX = DX:AX % 基数;
+												;   AX = DX:AX / 基数;
+												;   
+		mov		si, dx							;   // テーブル参照
+		mov		dl, byte [.ascii + si]			;   DL = ASCII[DX];
+												;   
+		mov		[di], dl						;   *dst = DL;
+		dec		di								;   dst--;
+												;   
+		cmp		ax, 0							;   
+		loopnz	.30L							; } while (AX);
+.30E:
 
-  test bx, 0b0010
-.20Q: je  .20E
-      cmp ax, 0;;
-.22Q: jge .22F; if < ax; then
-      neg ax;   ax *= -1
-      mov [si], byte '-';
-      jmp .22E;
+		;---------------------------------------
+		; 空欄を埋める
+		;---------------------------------------
+		cmp		cx, 0							; if (size)
+.40Q:	je		.40E							; {
+		mov		al, ' '							;   AL = ' ';  // ' 'で埋める（デフォルト値）
+		cmp		[bp +12], word 0b0100			;   if (flags & 0x04)
+.42Q:	jne		.42E							;   {
+		mov		al, '0'							;     AL = '0'; // '0'で埋める
+.42E:											;   }
+		std										;   // DF = 1（-方向）
+		rep stosb								;   while (--CX) *DI-- = ' ';
+.40E:											; }
 
-.22F:; if ax >0
-      mov [si], byte '+';
-.22E:;
-  dec cx; bufi--
+		;---------------------------------------
+		; 【レジスタの復帰】
+		;---------------------------------------
+		pop		di
+		pop		si
+		pop		dx
+		pop		cx
+		pop		bx
+		pop		ax
 
-.20E:;
-  mov bx, [bp+10]; bx = radix
+		;---------------------------------------
+		; 【スタックフレームの破棄】
+		;---------------------------------------
+		mov		sp, bp
+		pop		bp
 
-.30L:; fill bufs
-  mov dx, 0
-  div bx; dx = dx:ax % radix, ax = dx:ax / radix
+		ret
 
-  mov si, dx
-  mov dl, byte [.ascii + si]; dl = char for the modulo
-
-  mov [di], dl; *dst == dl
-  dec di
-
-  cmp ax, 0
-  loopnz  .30L
-
-.30E:; fill blanks
-  cmp cx, 0
-
-.40Q: je .40E
-  mov al, ' '
-  cmp [bp + 12], word 0b0100
-.42Q: jne .42E
-  mov al, '0'
-
-.42E:
-  std; DF = -1 (direction)
-  rep stosb; while(--cx) *di-- = ' ';
-
-.40E:
-  ;restore registers
-  pop di
-  pop si
-  pop dx
-  pop cx
-  pop bx
-  pop ax
-
-  ; collapse stack flame
-  mov sp, bp
-  pop bp
-  ret
-
-.ascii db "012345678ABCDEF"; char table
-
-
-
-
-
-
-
-
-
+.ascii	db		"0123456789ABCDEF"				; 変換テーブル
 
