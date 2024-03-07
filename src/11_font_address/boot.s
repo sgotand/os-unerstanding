@@ -39,7 +39,7 @@ ipl:
 .10T: cdecl puts, .e0;
       call  reboot;
 .10E:
-  jmp stage_2;
+  jmp stage_2nd;
 
 .s0   db "Booting...", 0x0A, 0x0D, 0; 0X0A == LF, 0x0D == CR, 0==$; this is section local
 .e0   db "Error:sector read", 0;
@@ -59,20 +59,25 @@ iend
   times 512 - 2 - ($ - $$) db 0;
   db 0x55, 0xAA;
 
-; ---------
-; |0x00000|
-; ~~~~~~~~~
+FONT:; allocat FONT data to easily decidable place to access from both real & protect mode
+.seg: dw 0 ; 2 byte for font data segment
+.off: dw 0 ; 2 byte for font data ofset
+; -----------
+; |0x00000  |
+; ~~~~~~~~~~~
 ; |stack    |
 ; |-0x7c000-|
 ; |ipl      |
 ; |-0x7e000-|
+; |font addr|
 ; |2nd stage|
 
 
 %include  "../modules/real/itoa.s";
 %include  "../modules/real/get_drive_param.s";
+%include  "../modules/real/get_font_adr.s";
 
-stage_2:
+stage_2nd:
   ; put str
   cdecl puts, .s0;
 
@@ -94,7 +99,7 @@ stage_2:
   cdecl itoa, ax, .p4, 2, 16, 0b0100 ; 
   cdecl puts, .s1
 
-  jmp $
+  jmp stage_3rd
 
 .s0   db "2nd stage...", 0x0A, 0x0D, 0; 0X0A == LF, 0x0D == CR, 0==$
 .s1   db " Drive:0x"
@@ -103,6 +108,27 @@ stage_2:
 .p3   db "  , S:0x"
 .p4   db "  ", 0x0A, 0x0D, 0
 .e0   db "Error:can't get drive params", 0;
+
+
+stage_3rd:
+
+  cdecl puts, .s0;
+
+  cdecl get_font_adr, FONT; FONT is a section
+
+  cdecl itoa, word [FONT.seg], .p1, 4, 16, 0b0100
+  cdecl itoa, word [FONT.off], .p2, 4, 16, 0b0100
+
+  cdecl puts, .s1; since s1 has no EOS (\0), .p1 & p2 will be shown
+;   cdecl puts, .p1;
+;   cdecl puts, .p2;
+
+  jmp $
+
+.s0   db "3rd stage...", 0x0A, 0x0D, 0; 0X0A == LF, 0x0D == CR, 0==$
+.s1   db " Font Address = "
+.p1   db "ZZZZ:"
+.p2   db "ZZZZ", 0x0A, 0x0D, 0
 
 
   times BOOT_SIZE - ($ - $$) db 0x00;
