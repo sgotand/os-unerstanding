@@ -62,6 +62,11 @@ iend
 FONT:; allocat FONT data to easily decidable place to access from both real & protect mode
 .seg: dw 0 ; 2 byte for font data segment
 .off: dw 0 ; 2 byte for font data ofset
+
+ACPI_DATA:
+.adr: dd 0 ; base addr 32bit
+.len: dd 0 ; region length 32bit
+
 ; -----------
 ; |0x00000  |
 ; ~~~~~~~~~~~
@@ -76,6 +81,7 @@ FONT:; allocat FONT data to easily decidable place to access from both real & pr
 %include  "../modules/real/itoa.s";
 %include  "../modules/real/get_drive_param.s";
 %include  "../modules/real/get_font_adr.s";
+%include  "../modules/real/get_mem_info.s";
 
 stage_2nd:
   ; put str
@@ -120,15 +126,45 @@ stage_3rd:
   cdecl itoa, word [FONT.off], .p2, 4, 16, 0b0100
 
   cdecl puts, .s1; since s1 has no EOS (\0), .p1 & p2 will be shown
-;   cdecl puts, .p1;
-;   cdecl puts, .p2;
 
-  jmp $
+  jmp stage_get_mem_info
+
 
 .s0   db "3rd stage...", 0x0A, 0x0D, 0; 0X0A == LF, 0x0D == CR, 0==$
 .s1   db " Font Address = "
 .p1   db "ZZZZ:"
 .p2   db "ZZZZ", 0x0A, 0x0D, 0
+
+
+stage_get_mem_info:
+  
+  cdecl puts, .s1; 
+  cdecl get_mem_info, ACPI_DATA; why? ACPI_DATA is missing in text
+  cdecl puts, .s1; 
+  ; check if ACPI_DATA fetch succeeded or not
+  mov   eax, [ACPI_DATA.adr]
+  cmp   eax, 0
+  je  .09E; if err != nil jump to error handling
+
+  cdecl itoa, ax, .p4,  4,  16, 0b0100; convert lower 16bit
+  shr   eax, 16; shift right; eax>>= 16;
+  cdecl itoa, ax, .p3,  4,  16, 0b0100; convert upper 16bit
+  cdecl puts, .s2;
+
+  jmp .10E
+
+.09E:
+  cdecl puts, .s3;
+
+.10E:
+
+  jmp $
+.s1 db "hello", 0x0A, 0x0D, 0
+.s2 db "ACPI data="
+.p3 db "ZZZZ"
+.p4 db "ZZZZ", 0x0A, 0x0D, 0
+
+.s3 db "ACPI_DATA wasn't loaded", 0x0A, 0x0D, 0
 
 
   times BOOT_SIZE - ($ - $$) db 0x00;
