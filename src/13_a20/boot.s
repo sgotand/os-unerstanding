@@ -82,6 +82,7 @@ ACPI_DATA:
 %include  "../modules/real/get_drive_param.s";
 %include  "../modules/real/get_font_adr.s";
 %include  "../modules/real/get_mem_info.s";
+%include  "../modules/real/kbc.s";
 
 stage_2nd:
   ; put str
@@ -156,13 +157,42 @@ stage_get_mem_info:
 
 .10E:
 
-  jmp $
+  jmp stage_4;
+
+
+
 .s2 db "ACPI data="
 .p3 db "ZZZZ"
 .p4 db "ZZZZ", 0x0A, 0x0D, 0
 
 .s3 db "ACPI_DATA wasn't loaded", 0x0A, 0x0D, 0
 
+
+stage_4:
+  
+  cdecl puts, .s0
+
+  cli                       ; disable interrupt
+  cdecl KBC_Cmd_Write,  0xAD; disable keyboard
+
+  cdecl KBC_Cmd_Write,  0xD0; instruct to read out port
+  cdecl KBC_Data_Read,  .key; read out port data
+  mov   bl, [.key]
+  or    bl, 0x02            ; set A20
+
+  cdecl KBC_Cmd_Write,  0xD1; instruct to write out port
+  cdecl KBC_Data_Write, bx  ; write out port data
+
+  cdecl KBC_Cmd_Write,  0xAE; enable keyboard
+  sti                       ; enable interrupt
+
+  cdecl puts, .s1
+
+  jmp $
+
+.s0   db "4th stage...", 0x0A, 0x0D, 0; 0X0A == LF, 0x0D == CR, 0==$
+.s1   db " A20 Gate Enabled", 0x0A, 0x0D, 0; 0X0A == LF, 0x0D == CR, 0==$
+.key: dw 0; buf
 
   times BOOT_SIZE - ($ - $$) db 0x00;
 
