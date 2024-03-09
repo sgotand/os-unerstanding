@@ -10,7 +10,7 @@ clean:
 	$(RM) boot.img boot.lst
 
 .PHONY: run
-run:
+run: boot.img
 	qemu-system-i386 -rtc base=localtime -drive file=boot.img,format=raw -nographic 
 
 .PHONY: debug
