@@ -138,9 +138,7 @@ stage_3rd:
 
 stage_get_mem_info:
   
-  cdecl puts, .s1; 
   cdecl get_mem_info, ACPI_DATA; why? ACPI_DATA is missing in text
-  cdecl puts, .s1; 
   ; check if ACPI_DATA fetch succeeded or not
   mov   eax, [ACPI_DATA.adr]
   cmp   eax, 0
@@ -159,7 +157,6 @@ stage_get_mem_info:
 .10E:
 
   jmp $
-.s1 db "hello", 0x0A, 0x0D, 0
 .s2 db "ACPI data="
 .p3 db "ZZZZ"
 .p4 db "ZZZZ", 0x0A, 0x0D, 0
