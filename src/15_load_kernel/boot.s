@@ -83,6 +83,8 @@ ACPI_DATA:
 %include  "../modules/real/get_font_adr.s";
 %include  "../modules/real/get_mem_info.s";
 %include  "../modules/real/kbc.s";
+%include  "../modules/real/read_lba.s";
+%include  "../modules/real/lba_chs.s";
 
 stage_2nd:
   ; put str
@@ -188,11 +190,31 @@ stage_4:
 
   cdecl puts, .s1
 
-  jmp $
+  jmp stage_5
 
 .s0   db "4th stage...", 0x0A, 0x0D, 0; 0X0A == LF, 0x0D == CR, 0==$
 .s1   db " A20 Gate Enabled", 0x0A, 0x0D, 0; 0X0A == LF, 0x0D == CR, 0==$
 .key: dw 0; buf
+
+stage_5:
+
+  cdecl puts, .s0
+  cdecl read_lba, BOOT, BOOT_SECT, KERNEL_SECT, BOOT_END
+
+  cmp ax, KERNEL_SECT
+
+.10Q: jz  .10E
+.10T: 
+
+  cdecl puts, .e0
+  call  reboot
+
+.10E:
+  jmp $
+
+ 
+.s0   db "5th stage...", 0x0A, 0x0D, 0; 0X0A == LF, 0x0D == CR, 0==$
+.e0   db " Failure load kernel...", 0x0A, 0x0D, 0; 0X0A == LF, 0x0D == CR, 0==$
 
   times BOOT_SIZE - ($ - $$) db 0x00;
 
