@@ -210,11 +210,30 @@ stage_5:
   call  reboot
 
 .10E:
-  jmp $
+  jmp stage_6
 
  
 .s0   db "5th stage...", 0x0A, 0x0D, 0; 0X0A == LF, 0x0D == CR, 0==$
 .e0   db " Failure load kernel...", 0x0A, 0x0D, 0; 0X0A == LF, 0x0D == CR, 0==$
 
+stage_6:
+
+  cdecl puts, .s0
+
+.10L: ; wait SPACE
+  mov ah, 0x00
+  int 0x16; wait input
+  cmp al, ' '
+  jne .10L
+
+
+  ; configure video mode
+  mov ax, 0x0012; VGA 640*480
+  int 0x10
+
+  jmp $
+
+.s0   db "6th stage...", 0x0A, 0x0D
+      db " [Push SPACE key to protect mode...]", 0x0A, 0x0D, 0; 0X0A == LF, 0x0D == CR, 0==$
   times BOOT_SIZE - ($ - $$) db 0x00;
 
