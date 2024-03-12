@@ -235,5 +235,59 @@ stage_6:
 
 .s0   db "6th stage...", 0x0A, 0x0D
       db " [Push SPACE key to protect mode...]", 0x0A, 0x0D, 0; 0X0A == LF, 0x0D == CR, 0==$
+
+
+ALIGN 4, db 0;
+GDT: dq 0x00_0_0_0_0_000000_0000; NULL
+.cs: dq 0x00_C_F_9_A_000000_FFFF; CODE 4G
+.ds: dq 0x00_C_F_9_2_000000_FFFF; DATA 4G
+.gdt_end:
+
+SEL_CODE equ .cs - GDT;
+SEL_DATA equ .ds - GDT;
+
+GDTR: dw GDT.gdt_end - GDT - 1; limit
+      dd GDT                  ; base
+
+IDTR: dw 0
+      dd 0
+
+stage_7:
+  cli ; disable interrupt
+
+  lgdt [GDTR];
+  lidt [IDTR];
+
+  ; move to protected mode
+
+  ; set PE bit
+  mov eax, cr0
+  or  ax, 1
+  mov cr0, eax 
+
+  jmp $ + 2; clear look ahead
+
+[BITS 32];
+  DB  0x66; operand size override prefix
+  jmp SEL_CODE:CODE_32 
+
+CODE_32:
+  ; initialize selectors
+  mov ax, SEL_DATA
+  mov ds, ax
+  mov es, ax
+  mov fs, ax
+  mov gs, ax
+  mov ss, ax
+
+
+  mov ecx, (KERNEL_SIZE)/ 4; ECX = copy by 4bytes
+  mov esi, BOOT_END; (KERNEL_START)
+  mov edi, KERNEL_LOAD
+  cld; clear DF, direction+
+  rep movsd; while(--ECX) *EDI++ = *ESI++; 
+
+  jmp KERNEL_LOAD
+
   times BOOT_SIZE - ($ - $$) db 0x00;
 
